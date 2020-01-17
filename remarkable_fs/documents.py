@@ -22,6 +22,7 @@ from lazy import lazy
 from progress.bar import Bar
 from io import BytesIO
 import remarkable_fs.rM2svg
+from remarkable_fs.connection import Connection
 
 try:
     from json import JSONDecodeError
@@ -235,7 +236,7 @@ class DocumentRoot(Collection):
     filenames and the values are nodes. You can also use find_node() to look up
     a node by id."""
 
-    def __init__(self, connection):
+    def __init__(self, connection: Connection):
         """connection - a Connection object returned by remarkable_fs.connection.connect()."""
 
         super(DocumentRoot, self).__init__(self, "", None)
@@ -361,8 +362,10 @@ class Document(Node):
         if self.file_type() == "":
             raise NoContents()
         self.file_name = self.name + "." + self.file_type()
-        self._size = self.root.sftp.stat(self.id + "." + self.file_type()).st_size
-
+        try:
+            self._size = self.root.sftp.stat(self.id + "." + self.file_type()).st_size
+        except IOError:
+            raise NoContents()
     def file_type(self):
         """Return the type of file."""
         return self.content["fileType"]

@@ -1,14 +1,20 @@
 """Handles maintaining a connection to the reMarkable."""
 
 from contextlib import contextmanager
-from collections import namedtuple
 from paramiko.client import SSHClient, AutoAddPolicy
 from paramiko.sftp_client import SFTPClient
 from paramiko.ssh_exception import SSHException, AuthenticationException
 from getpass import getpass
 from signal import signal, SIGTERM, SIGHUP
 
-Connection = namedtuple('Connection', 'ssh sftp')
+try:
+    from typing import NamedTuple
+    class Connection(NamedTuple):
+        ssh: SSHClient
+        sftp: SFTPClient
+except ImportError:
+    from collections import namedtuple
+    Connection = namedtuple('Connection', 'ssh sftp')
 
 @contextmanager
 def connect(addr=None):
