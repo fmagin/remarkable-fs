@@ -11,6 +11,7 @@ Minimal example:
 >>>     print root["foo.pdf"].read(0, 4096) # prints first 4KB of foo.pdf"""
 
 import fnmatch
+import io
 import json
 import time
 import os.path
@@ -21,8 +22,8 @@ from uuid import uuid4
 from lazy import lazy
 from progress.bar import Bar
 from io import BytesIO
-import remarkable_fs.rM2svg
-from remarkable_fs.connection import Connection
+#import remarkable_fs.rM2svg
+#from remarkable_fs.connection import Connection
 
 try:
     from json import JSONDecodeError
@@ -207,6 +208,14 @@ class Collection(Node):
         """Find all nodes in the collection."""
         return self.children.items()
 
+    def add_file(self, sourcepath):
+        """Adds a file to the collection, specified by a local path"""
+        filename = os.path.basename(sourcepath)
+        n: NewDocument = self.new_document(filename)
+        with open(sourcepath, 'rb') as f:
+            n.buf = io.BytesIO(f.read())
+        n.save()
+
     def __repr__(self):
         return "%s(%s, %s, %s)" % \
             (type(self).__name__,
@@ -236,15 +245,15 @@ class DocumentRoot(Collection):
     filenames and the values are nodes. You can also use find_node() to look up
     a node by id."""
 
-    def __init__(self, connection: Connection):
+    def __init__(self, connection):
         """connection - a Connection object returned by remarkable_fs.connection.connect()."""
 
         super(DocumentRoot, self).__init__(self, "", None)
         self.nodes = {"": self}
-        self.sftp = connection.sftp
+        self.connection = connection
         self.templates = {}
 
-        paths = fnmatch.filter(self.sftp.listdir(), '*.metadata')
+        paths = fnmatch.filter(self.connection.listdir(), '*.metadata')
         bar = Bar("Reading document information", max=len(paths))
         for path in paths:
             id, _ = os.path.splitext(path)
@@ -305,12 +314,15 @@ class DocumentRoot(Collection):
 
     def read_file(self, file):
         """Read a file from SFTP."""
-        return self.sftp.open(file, "rb").read()
+        return self.connection.open(file, "rb").read()
 
     def write_file(self, file, data):
         """Write a file to SFTP."""
-        f = self.sftp.open(file, "wb")
-        f.set_pipelined()
+        f = self.connection.open(file, "wb")
+        try:
+            f.set_pipelined()
+        except:
+            pass
         f.write(memoryview(data))
 
     def read_json(self, file):
@@ -363,9 +375,10 @@ class Document(Node):
             raise NoContents()
         self.file_name = self.name + "." + self.file_type()
         try:
-            self._size = self.root.sftp.stat(self.id + "." + self.file_type()).st_size
+            self._size = self.root.connection.stat(self.id + "." + self.file_type()).st_size
         except IOError:
             raise NoContents()
+
     def file_type(self):
         """Return the type of file."""
         return self.content["fileType"]

@@ -1,8 +1,4 @@
-from remarkable_fs.connection import connect
-from remarkable_fs.documents import DocumentRoot
-from remarkable_fs.fs import mount
 import sys
-import fuse
 
 try:
     import __builtin__
@@ -11,6 +7,10 @@ except:
     raw_input = input
 
 def main(argv = sys.argv):
+    from remarkable_fs.connection import connect
+    from remarkable_fs.documents import DocumentRoot
+    from remarkable_fs.fs import mount
+    import fuse
     if len(argv) >= 2:
         mount_point = argv[1]
     else:

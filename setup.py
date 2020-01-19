@@ -38,7 +38,13 @@ setup(
     keywords='remarkable fuse',
 
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
-    install_requires=['fusepy', 'paramiko', 'lazy', 'progress', 'fpdf'],
+    install_requires=['lazy', 'progress'],
+
+    extras_require={
+        'fuse': ['fusepy'],
+        'ssh': ['paramiko'],
+        'pdfexport':['fpdf'],
+    },
 
     entry_points={
         'console_scripts': [

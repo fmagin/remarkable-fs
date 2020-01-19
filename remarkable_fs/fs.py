@@ -6,7 +6,7 @@ from errno import *
 from posix import O_WRONLY, O_RDWR
 import stat
 from fuse import FUSE, FuseOSError, Operations
-from remarkable_fs.documents import Collection, Document, NewDocument
+from remarkable_fs.documents import Collection, Document, NewDocument, DocumentRoot
 from io import BytesIO
 import traceback
 
@@ -47,7 +47,7 @@ class FileHandles(object):
 class Remarkable(Operations):
     """The main filesystem implementation."""
 
-    def __init__(self, documents):
+    def __init__(self, documents: DocumentRoot):
         """documents - a remarkable_fs.documents.DocumentRoot object."""
 
         self.documents = documents

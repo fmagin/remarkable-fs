@@ -1,64 +1,90 @@
 """Handles maintaining a connection to the reMarkable."""
+import os
 
-from contextlib import contextmanager
-from paramiko.client import SSHClient, AutoAddPolicy
-from paramiko.sftp_client import SFTPClient
-from paramiko.ssh_exception import SSHException, AuthenticationException
-from getpass import getpass
-from signal import signal, SIGTERM, SIGHUP
+
+
+
+class Connection():
+    def listdir(self):
+        raise NotImplementedError()
+
+    def open(self, file, flags, mode=0o777):
+        raise NotImplementedError()
+
+class LocalConnection(Connection):
+    def __init__(self, root="/home/root/.local/share/remarkable/xochitl"):
+        self.root = root
+
+    def listdir(self):
+        return os.listdir(self.root)
+
+    def open(self, filename, flags, mode=0o777):
+        return open(os.path.join(self.root, filename), flags)
+
+    def stat(self, filename):
+        return os.stat(filename)
+
 
 try:
-    from typing import NamedTuple
-    class Connection(NamedTuple):
-        ssh: SSHClient
-        sftp: SFTPClient
-except ImportError:
-    from collections import namedtuple
-    Connection = namedtuple('Connection', 'ssh sftp')
+    from contextlib import contextmanager
+    from paramiko.client import SSHClient, AutoAddPolicy
+    from paramiko.sftp_client import SFTPClient
+    from paramiko.ssh_exception import SSHException, AuthenticationException
+    from getpass import getpass
+    from signal import signal, SIGTERM, SIGHUP
 
-@contextmanager
-def connect(addr=None):
-    """Connect to the remarkable. Yields a Connection object.
+    class RemoteConnection(Connection):
+        def __init__(self, address="10.11.99.1"):
+            pass
+        def listdir(self):
+            pass
 
-    The sftp field of the connection object has as its working directory the
-    data directory of xochitl."""
+    @contextmanager
+    def connect(addr=None):
+        """Connect to the remarkable. Yields a Connection object.
 
-    default_addr = "10.11.99.1"
-    with SSHClient() as ssh:
-        ssh.load_system_host_keys()
-        ssh.set_missing_host_key_policy(AutoAddPolicy)
-        try:
-            ssh.connect(addr or default_addr, username="root")
-        except (SSHException, AuthenticationException):
-            print("Please enter the root password of your reMarkable.")
-            print("To find out the password, follow the instructions at:")
-            print("http://remarkablewiki.com/index.php?title=Methods_of_access#Connecting_via_ssh")
-            password = getpass()
-            ssh.connect(addr or default_addr, username="root", password=password, look_for_keys=False)
+        The sftp field of the connection object has as its working directory the
+        data directory of xochitl."""
 
-        # Stop xochitl but restart it again if the connection drops
-        on_start = "systemctl stop xochitl"
-        on_finish = "systemctl restart xochitl"
-        # We know USB was disconnected when the power supply drops.
-        # We also kill the SSH connection so that the information
-        # in FUSE is not out of date.
-        ssh.exec_command(on_start)
-        if addr is None:
-            # Only do this if we are plugged in to the device
-            ssh.exec_command("while udevadm info -p /devices/soc0/soc/2100000.aips-bus/2184000.usb/power_supply/imx_usb_charger | grep -q POWER_SUPPLY_ONLINE=1; do sleep 1; done; %s; kill $PPID" % on_finish)
-
-        try:
-            def raise_exception(*args):
-                raise RuntimeError("Process terminated")
-            signal(SIGTERM, raise_exception)
-            signal(SIGHUP, raise_exception)
-            with ssh.open_sftp() as sftp:
-                sftp.chdir("/home/root/.local/share/remarkable/xochitl")
-                yield Connection(ssh, sftp)
-
-        finally:
-            # Closing stdin triggers on_finish to run, so only do it now
+        default_addr = "10.11.99.1"
+        with SSHClient() as ssh:
+            ssh.load_system_host_keys()
+            ssh.set_missing_host_key_policy(AutoAddPolicy)
             try:
-                ssh.exec_command(on_finish)
-            except:
-                pass
+                ssh.connect(addr or default_addr, username="root")
+            except (SSHException, AuthenticationException):
+                print("Please enter the root password of your reMarkable.")
+                print("To find out the password, follow the instructions at:")
+                print("http://remarkablewiki.com/index.php?title=Methods_of_access#Connecting_via_ssh")
+                password = getpass()
+                ssh.connect(addr or default_addr, username="root", password=password, look_for_keys=False)
+
+            # Stop xochitl but restart it again if the connection drops
+            on_start = "systemctl stop xochitl"
+            on_finish = "systemctl restart xochitl"
+            # We know USB was disconnected when the power supply drops.
+            # We also kill the SSH connection so that the information
+            # in FUSE is not out of date.
+            ssh.exec_command(on_start)
+            if addr is None:
+                # Only do this if we are plugged in to the device
+                ssh.exec_command("while udevadm info -p /devices/soc0/soc/2100000.aips-bus/2184000.usb/power_supply/imx_usb_charger | grep -q POWER_SUPPLY_ONLINE=1; do sleep 1; done; %s; kill $PPID" % on_finish)
+
+            try:
+                def raise_exception(*args):
+                    raise RuntimeError("Process terminated")
+                signal(SIGTERM, raise_exception)
+                signal(SIGHUP, raise_exception)
+                with ssh.open_sftp() as sftp:
+                    sftp.chdir("/home/root/.local/share/remarkable/xochitl")
+                    yield Connection(ssh, sftp)
+
+            finally:
+                # Closing stdin triggers on_finish to run, so only do it now
+                try:
+                    ssh.exec_command(on_finish)
+                except:
+                    pass
+except ImportError:
+    print("Modules for RemoteConnection missing")
+
